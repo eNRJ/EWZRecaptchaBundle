@@ -2,8 +2,8 @@
 
 namespace EWZ\Bundle\RecaptchaBundle\Bridge;
 
-use Silex\Application;
-use Silex\ServiceProviderInterface;
+use Pimple\Container;
+use Pimple\ServiceProviderInterface;
 use EWZ\Bundle\RecaptchaBundle\Validator\Constraints\IsTrueValidator;
 
 /**
@@ -15,81 +15,74 @@ class RecaptchaServiceProvider implements ServiceProviderInterface
     /**
      * {@inheritdoc}
      */
-    public function register(Application $app)
+    public function register(Container $container)
     {
         // parameters
-        $app['ewz_recaptcha.public_key']  = null;
-        $app['ewz_recaptcha.private_key'] = null;
-        $app['ewz_recaptcha.locale_key']  = $app['locale'];
-        $app['ewz_recaptcha.enabled']     = true;
-        $app['ewz_recaptcha.ajax']        = false;
-        $app['ewz_recaptcha.http_proxy']  = array(
+        $container['ewz_recaptcha.public_key']  = null;
+        $container['ewz_recaptcha.private_key'] = null;
+        $container['ewz_recaptcha.locale_key']  = $container['locale'];
+        $container['ewz_recaptcha.enabled']     = true;
+        $container['ewz_recaptcha.ajax']        = false;
+        $container['ewz_recaptcha.http_proxy']  = array(
             'host' => null,
             'port' => null,
             'auth' => null
         );
 
         // add loader for EWZ Template
-        if (isset($app['twig'])) {
+        if (isset($container['twig'])) {
             $path = dirname(__FILE__).'/../Resources/views/Form';
-            $app['twig.loader']->addLoader(new \Twig_Loader_Filesystem($path));
+            $container['twig.loader']->addLoader(new \Twig_Loader_Filesystem($path));
 
-            $app['twig.form.templates'] = array_merge(
-                $app['twig.form.templates'],
+            $container['twig.form.templates'] = array_merge(
+                $container['twig.form.templates'],
                 array('ewz_recaptcha_widget.html.twig')
             );
         }
 
         // register recaptcha form type
-        if (isset($app['form.extensions'])) {
-            $app['form.extensions'] = $app->share($app->extend('form.extensions',
-                function($extensions) use ($app) {
-                    $extensions[] = new Form\Extension\RecaptchaExtension($app);
+        if (isset($container['form.extensions'])) {
+            $container['form.extensions'] = $container->extend('form.extensions',
+                function($extensions) use ($container) {
+                    $extensions[] = new Form\Extension\RecaptchaExtension($container);
 
                     return $extensions;
-            }));
+            });
         }
 
         // register recaptcha validator constraint
-        if (isset($app['validator.validator_factory'])) {
-            $app['ewz_recaptcha.true'] = $app->share(function ($app) {
+        if (isset($container['validator.validator_factory'])) {
+            $container['ewz_recaptcha.true'] = function ($container) {
                 $validator = new IsTrueValidator(
-                    $app['ewz_recaptcha.enabled'],
-                    $app['ewz_recaptcha.private_key'],
-                    $app['request_stack'],
-                    $app['ewz_recaptcha.http_proxy']
+                    $container['ewz_recaptcha.enabled'],
+                    $container['ewz_recaptcha.private_key'],
+                    $container['request_stack'],
+                    $container['ewz_recaptcha.http_proxy']
                 );
 
                 return $validator;
-            });
+            };
 
-            $app['validator.validator_service_ids'] =
-                    isset($app['validator.validator_service_ids']) ? $app['validator.validator_service_ids'] : array();
-            $app['validator.validator_service_ids'] = array_merge(
-                $app['validator.validator_service_ids'],
+            $container['validator.validator_service_ids'] =
+                    isset($container['validator.validator_service_ids']) ? $container['validator.validator_service_ids'] : array();
+            $container['validator.validator_service_ids'] = array_merge(
+                $container['validator.validator_service_ids'],
                 array('ewz_recaptcha.true' => 'ewz_recaptcha.true')
             );
         }
 
         // register translation files
-        if (isset($app['translator'])) {
-            $app['translator'] = $app->share($app->extend('translator', function($translator, $app) {
+        if (isset($container['translator'])) {
+            $container['translator'] = $container->extend('translator', function($translator, $container) {
                 $translator->addResource(
                     'xliff',
-                    dirname(__FILE__).'/../Resources/translations/validators.'.$app['ewz_recaptcha.locale_key'].'.xlf',
-                    $app['ewz_recaptcha.locale_key'],
+                    dirname(__FILE__).'/../Resources/translations/validators.'.$container['ewz_recaptcha.locale_key'].'.xlf',
+                    $container['ewz_recaptcha.locale_key'],
                     'validators'
                 );
 
                 return $translator;
-            }));
+            });
         }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function boot(Application $app)
-    {
     }
 }
